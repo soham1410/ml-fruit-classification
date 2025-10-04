@@ -10,19 +10,26 @@ Soft-voting ensemble that combines:
 The final probability vector is simply the **average** of both
 individual probabilities.  This already beats each single model
 on the Fruit-360 test split.
+
+**Fix**: dynamically reads the correct number of classes from
+`models/cnn_classes.json` so the checkpoint always matches.
 """
 # -------------------- imports --------------------
 import os
+import json
 import joblib
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
+from src.cnn import CNN  # local import
+
 # ------------------------------------------------------------------
 #  Device
 # ------------------------------------------------------------------
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # ------------------------------------------------------------------
 #  EnsembleModel
 # ------------------------------------------------------------------
@@ -42,49 +49,52 @@ class EnsembleModel:
     """
     def __init__(self, device: torch.device = DEVICE):
         self.device = device
-        # load CNN
-        from src.cnn import CNN
-        self.cnn = CNN(num_classes=131).to(device)
+
+        # ---------- load class list ----------
+        with open("models/cnn_classes.json", "r") as fp:
+            self.class_names = json.load(fp)
+        num_classes = len(self.class_names)
+
+        # ---------- load CNN (dynamic size) ----------
+        self.cnn = CNN(num_classes=num_classes).to(device)
         self.cnn.load_state_dict(
             torch.load("models/cnn.pth", map_location=device)
         )
         self.cnn.eval()
-        # load PCA + SVM (k=5 is best in paper)
+
+        # ---------- load PCA + SVM (k=5 is best in paper) ----------
         self.pca = joblib.load("models/pca_k5.pkl")
         self.svm = joblib.load("models/svm_k5_fold15.pkl")
-        # class names
-        with open("models/cnn_classes.json", "r") as fp:
-            self.class_names = json.load(fp)
 
     # ------------------------------------------------------------------
     #  Public API
     # ------------------------------------------------------------------
     def predict(self, img_pil: Image.Image) -> np.ndarray:
         """
-        Parameters
-        ----------
-        img_pil : PIL.Image
-            RGB image of any size.
-
-        Returns
-        -------
-        prob : np.ndarray  shape=(131,)
-            Soft-vote probability vector.
+        Returns probability vector **aligned to full CNN classes**.
         """
-        # ---- CNN branch ----
-        x_cnn = transforms.ToTensor()(img_pil.resize((100, 100))).unsqueeze(0).to(self.device)
+        # ---------- CNN branch ----------
+        # inside src/ensemble.py  (predict method)
+        img_pil = transforms.ToPILImage()(img_pil).resize((100, 100))        # PIL object
+        x_cnn   = transforms.ToTensor()(img_pil).unsqueeze(0).to(self.device)  # shape [1, 3, 100, 100]
         with torch.no_grad():
-            logits = self.cnn(x_cnn)
-            prob_cnn = F.softmax(logits, dim=1).cpu().numpy()[0]
+            prob_cnn = F.softmax(self.cnn(x_cnn), dim=1).cpu().numpy()[0]   # shape [131]
 
-        # ---- SVM+PCA branch ----
+        # ---------- SVM+PCA branch (subset classes) ----------
         x_flat = np.array(img_pil.resize((100, 100))).reshape(-1) / 255.0
-        x_pca = self.pca.transform([x_flat])
-        prob_svm = self.svm.predict_proba(x_pca)[0]
+        x_pca  = self.pca.transform([x_flat])
+        prob_svm = self.svm.predict_proba(x_pca)[0]   # shape [29]
 
-        # ---- soft vote ----
-        prob = (prob_cnn + prob_svm) / 2.0
-        return prob
+        # ---------- map SVM probs to CNN indices ----------
+        # build index map:  svm_class -> cnn_class
+        svm_classes = self.svm.classes_          # ndarray(int)  length 29
+        cnn_indices = np.arange(len(self.class_names))
+        aligned = np.zeros(len(self.class_names), dtype=float)
+        for p, svm_idx in zip(prob_svm, svm_classes):
+            aligned[svm_idx] = p
+
+        # ---------- soft vote ----------
+        return (prob_cnn + aligned) / 2.0
 
     def score(self, flat_dataset, cnn_dataset):
         """
@@ -103,8 +113,8 @@ class EnsembleModel:
         accuracy : float
         """
         from torch.utils.data import DataLoader
-        loader_flat = DataLoader(flat_dataset, batch_size=256, num_workers=2, pin_memory=True)
-        loader_cnn  = DataLoader(cnn_dataset,  batch_size=256, num_workers=2, pin_memory=True)
+        loader_flat = DataLoader(flat_dataset, batch_size=256, num_workers=0, pin_memory=False)
+        loader_cnn  = DataLoader(cnn_dataset,  batch_size=256, num_workers=0, pin_memory=False)
 
         correct = 0
         total   = 0

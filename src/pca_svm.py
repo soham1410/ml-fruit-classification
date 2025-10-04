@@ -1,3 +1,4 @@
+import joblib
 from sklearn.svm import SVC
 def train_svm_pca(X, y, k, fold=1):
     pca = joblib.load(f"models/pca_k{k}.pkl")
