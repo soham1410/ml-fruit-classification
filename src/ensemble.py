@@ -75,13 +75,14 @@ class EnsembleModel:
         """
         # ---------- CNN branch ----------
         # inside src/ensemble.py  (predict method)
-        img_pil = transforms.ToPILImage()(img_pil).resize((100, 100))        # PIL object
-        x_cnn   = transforms.ToTensor()(img_pil).unsqueeze(0).to(self.device)  # shape [1, 3, 100, 100]
+        img_resized = img_pil.resize((100, 100))
+        x_cnn_tensor = transforms.ToTensor()(img_resized)
+        x_cnn = x_cnn_tensor.unsqueeze(0).to(self.device)
         with torch.no_grad():
-            prob_cnn = F.softmax(self.cnn(x_cnn), dim=1).cpu().numpy()[0]   # shape [131]
+            prob_cnn = F.softmax(self.cnn(x_cnn), dim=1).cpu().numpy()[0]
 
         # ---------- SVM+PCA branch (subset classes) ----------
-        x_flat = np.array(img_pil.resize((100, 100))).reshape(-1) / 255.0
+        x_flat = x_cnn_tensor.view(-1).numpy()
         x_pca  = self.pca.transform([x_flat])
         prob_svm = self.svm.predict_proba(x_pca)[0]   # shape [29]
 

@@ -23,7 +23,7 @@ from PIL import Image
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # ---- CNN ----
 from src.cnn import CNN
-CNN_MODEL = CNN(num_classes=131).to(DEVICE)
+CNN_MODEL = CNN(num_classes=219).to(DEVICE)
 CNN_MODEL.load_state_dict(torch.load("models/cnn.pth", map_location=DEVICE))
 CNN_MODEL.eval()
 # class names
@@ -45,7 +45,8 @@ def _flatten_transform(img: Image.Image) -> np.ndarray:
     """
     Resize to 100×100, convert to tensor, flatten to 30 000-D numpy vector.
     """
-    return np.array(img.resize((100, 100))).reshape(-1) / 255.0
+    t = transforms.ToTensor()(img.resize((100, 100)))
+    return t.view(-1).numpy()
 def _cnn_transform(img: Image.Image) -> torch.Tensor:
     """
     Resize to 100×100 and convert to tensor (keeps 3×100×100).
