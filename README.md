@@ -1,6 +1,6 @@
 # Ml-Fruit-classification
 
-**Project Title:** Ml-Fruit-classification
+**Project Title:** A Comparative Analysis of SVM, CNN, and Ensemble Models for Fruit Classification
 
 ## Introduction
 
@@ -18,18 +18,48 @@ The project explores and compares three primary machine learning approaches for 
 
 ## System Architecture
 
-The project is organized into several Python scripts and a source directory:
+A textual description of the system architecture that can be used to generate a diagram is as follows:
 
--   `app.py`: A Streamlit web application for interactive fruit classification.
--   `train.py`: The main script for training all models (SVM+PCA, CNN, and Ensemble), saving the trained models, and generating performance metrics.
--   `visualize.py`: A script dedicated to generating visualizations, such as PCA scatter plots and confusion matrices, from the saved model results.
--   `src/`: A directory containing the core logic for the models and data handling:
-    -   `data.py`: Manages the Fruits-360 dataset, including automatic download from Kaggle.
-    -   `cnn.py`: Defines the CNN model architecture and includes helper functions for training and evaluation.
-    -   `pca_svm.py`: Contains functions for training and evaluating the SVM+PCA models.
-    -   `ensemble.py`: Implements the soft-voting ensemble model.
-    -   `inference.py`: Provides functions for loading the trained models and making predictions on new images.
-    -   `viz.py`: Includes plotting utilities for PCA visualization.
+**Title: System Architecture for Fruit Classification**
+
+**Components:**
+
+1.  **Data Layer:**
+    *   **Kaggle Dataset (Fruits-360):** The primary source of data. This component is responsible for providing the fruit images.
+
+2.  **Data Preparation Layer:**
+    *   **Data Downloader (`src/data.py`):** Downloads the dataset from Kaggle.
+    *   **Image Transformation:** Applies transformations such as resizing and conversion to tensors.
+    *   **Data Splitting:** Splits the data into training and testing sets.
+
+3.  **Model Training Layer (`train.py`):**
+    *   **SVM+PCA Pipeline:**
+        *   **PCA:** Reduces the dimensionality of the image data.
+        *   **SVM:** A Support Vector Machine classifier trained on the PCA-transformed data.
+    *   **CNN Pipeline:**
+        *   **CNN:** A 6-layer Convolutional Neural Network trained on the image data.
+    *   **Ensemble Pipeline:**
+        *   **Ensemble Model:** A soft-voting ensemble that combines the predictions of the CNN and the best SVM+PCA model.
+
+4.  **Model Storage:**
+    *   **`models/` directory:** Stores the trained models (`.pkl` for SVM/PCA, `.pth` for CNN).
+
+5.  **Inference Layer (`src/inference.py`):**
+    *   **Model Loader:** Loads the trained models from the `models/` directory.
+    *   **Prediction Engine:** Takes an input image and generates predictions from all models.
+
+6.  **Presentation Layer (`app.py`):**
+    *   **Streamlit Web App:** Provides a user interface for uploading images and viewing predictions.
+
+**Flows:**
+
+1.  The **Data Downloader** retrieves the **Kaggle Dataset**.
+2.  The **Image Transformation** and **Data Splitting** components process the data for training.
+3.  The **Model Training Layer** uses the prepared data to train the **SVM+PCA**, **CNN**, and **Ensemble** models.
+4.  The trained models are saved to the **Model Storage**.
+5.  The **Streamlit Web App** receives an image from the user.
+6.  The **Prediction Engine** in the **Inference Layer** loads the models from **Model Storage** and uses them to classify the image.
+7.  The **Streamlit Web App** displays the predictions to the user.
 
 ## Data Sets
 
