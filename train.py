@@ -38,12 +38,8 @@ from src.ensemble import EnsembleModel
 from src.viz import plot_pca_2d, plot_pca_3d
 
 # -------------------- globals --------------------
-PCA_COMPONENTS = [2, 5, 8]      # k values used in paper tables
-FOLD_VALUES    = [2, 5, 10, 15] # fold values used in tables 2-4
-RANDOM_STATE   = 42             # for reproducible shuffle
+# Configuration loaded from config.json in main block
 DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SUB_TRAIN      = 15_000         # shuffled → all fruits
-SUB_TEST       = 5_000          # shuffled → all fruits
 os.makedirs("models", exist_ok=True)
 os.makedirs("figures", exist_ok=True)
 
@@ -146,31 +142,42 @@ def save_fruit_cm(y_true_sub, y_pred_sub, classes, save_path, title="Fruit-Level
 if __name__ == '__main__':
 
     # ------------------------------------------------------------------
+    # 0.  CONFIG
+    # ------------------------------------------------------------------
+    with open("config.json", "r") as f:
+        config = json.load(f)
+    
+    RANDOM_STATE = config["random_state"]
+    PCA_COMPONENTS = config["pca_components"]
+    FOLD_VALUES = config["fold_values"]
+    CNN_EPOCHS = config["cnn_epochs"]
+    BATCH_SIZE = config["batch_size"]
+    LEARNING_RATE = config["learning_rate"]
+
+    # ------------------------------------------------------------------
     # 1.  DATA  (CNN = subset,  flat = subset)
     # ------------------------------------------------------------------
     cnn_transform = transforms.Compose([transforms.Resize((100, 100)), transforms.ToTensor()])
     train_set_cnn_full = Fruit360(train=True,  transform=cnn_transform, download=False)
     test_set_cnn_full  = Fruit360(train=False, transform=cnn_transform, download=False)
     
-    rng = np.random.default_rng(RANDOM_STATE)
-    train_indices = rng.permutation(len(train_set_cnn_full))[:SUB_TRAIN]
-    test_indices = rng.permutation(len(test_set_cnn_full))[:SUB_TEST]
+    # Use the full datasets for training and testing
+    train_set_cnn = train_set_cnn_full
+    test_set_cnn = test_set_cnn_full
+    # The SUB_TRAIN and SUB_TEST globals are no longer used for subsetting CNN data
+    print(f"[INFO] Using full dataset. CNN data – train: {len(train_set_cnn)}, test: {len(test_set_cnn)}")
 
-    train_set_cnn = torch.utils.data.Subset(train_set_cnn_full, train_indices)
-    test_set_cnn = torch.utils.data.Subset(test_set_cnn_full, test_indices)
-
-    print(f"[INFO] CNN data – train: {len(train_set_cnn)}, test: {len(test_set_cnn)}")
-
-    def load_flat_data_from_subset(dataset, indices):
+    def load_flat_data_full(dataset, desc=""):
         X, y = [], []
-        for i in tqdm(indices, desc="[INFO] Loading flat data"):
-            img, label = dataset[i] # img is a tensor here
+        for i in tqdm(range(len(dataset)), desc=f"[INFO] Loading full flat {desc} data"):
+            img, label = dataset[i]
             X.append(img.view(-1).numpy())
             y.append(label)
         return np.array(X), np.array(y)
 
-    X_train, y_train = load_flat_data_from_subset(train_set_cnn_full, train_indices)
-    X_test,  y_test  = load_flat_data_from_subset(test_set_cnn_full,  test_indices)
+    print("[INFO] Loading full SVM training data (this may take a while)...")
+    X_train, y_train = load_flat_data_full(train_set_cnn_full, desc="train")
+    X_test,  y_test  = load_flat_data_full(test_set_cnn_full,  desc="test")
 
     print(f"[INFO] Flat data – train: {X_train.shape}, test: {X_test.shape}")
 
@@ -228,6 +235,11 @@ if __name__ == '__main__':
             "train_time": train_time
         })
 
+        # If this is the k=5 model, save it for the ensemble
+        if k == 5:
+            print("[INFO] Saving SVM+PCA(k=5) model for ensemble...")
+            joblib.dump(svm, "models/svm_k5_fold15.pkl")
+
         # ---- K-Fold CV ----
         for fold in FOLD_VALUES:
             if fold == 1: continue
@@ -250,8 +262,6 @@ if __name__ == '__main__':
                 "macro-R": np.mean(rs), "macro-F1": np.mean(f1s),
                 "train_time": train_time
             })
-            if fold == 15:
-                joblib.dump(svm, f"models/svm_k{k}_fold15.pkl")
 
         # ---- Fruit-level CM for SVM+PCA (k=5) ----
         if k == 5:
@@ -267,11 +277,11 @@ if __name__ == '__main__':
     if missing(cnn_path) or missing(classes_path):
         print("\n[INFO] Training CNN …")
         cnn = CNN(num_classes=len(train_set_cnn_full.classes)).to(DEVICE)
-        loader   = mk_loader(train_set_cnn, batch=128, shuffle=True)
+        loader   = mk_loader(train_set_cnn, batch=BATCH_SIZE, shuffle=True)
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(cnn.parameters(), lr=1e-3)
+        optimizer = optim.Adam(cnn.parameters(), lr=LEARNING_RATE)
         cnn.train()
-        epochs = 6
+        epochs = CNN_EPOCHS
         for epoch in range(epochs):
             bar = tqdm(loader, desc=f"Epoch {epoch+1}/{epochs}")
             for x, y in bar:
@@ -292,7 +302,7 @@ if __name__ == '__main__':
     cnn = CNN(num_classes=len(train_set_cnn_full.classes)).to(DEVICE)
     cnn.load_state_dict(torch.load(cnn_path, map_location=DEVICE))
     cnn.eval()
-    test_loader = mk_loader(test_set_cnn, batch=256, shuffle=False)
+    test_loader = mk_loader(test_set_cnn, batch=BATCH_SIZE, shuffle=False)
     y_true, y_pred = [], []
     with torch.no_grad():
         for x, y in tqdm(test_loader, desc="CNN eval"):
@@ -371,8 +381,8 @@ if __name__ == '__main__':
         GLOBAL_TOP10_IDX=np.array(GLOBAL_TOP10_IDX),
         X_train_pca=X_train[:5000],
         y_train_pca=y_train[:5000],
-        train_targets=np.array([train_set_cnn_full.targets[i] for i in train_indices]),
-        test_targets=np.array([test_set_cnn_full.targets[i] for i in test_indices]),
+        train_targets=np.array(train_set_cnn_full.targets),
+        test_targets=np.array(test_set_cnn_full.targets),
     )
 
     print("\n[INFO] Training complete. Run `python visualize.py` to generate figures.")

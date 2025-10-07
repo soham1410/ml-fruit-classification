@@ -64,36 +64,43 @@ def predict_all(img_pil: Image.Image):
 
     Returns
     -------
-    probs : dict
-        Keys match the UI labels:
-        'SVM+PCA+KF (k=2)', 'SVM+PCA+KF (k=5)', 'SVM+PCA+KF (k=8)',
-        'CNN', 'Ensemble'
-        Values are float confidence scores (0–1) for the *predicted* class.
-    label : str
-        Human-readable class name (from ensemble prediction).
+    predictions : dict
+        Keys are model names, values are tuples of (label, confidence).
     """
     # ---------------- CNN branch ----------------
     x_cnn = _cnn_transform(img_pil).unsqueeze(0).to(DEVICE)
     with torch.no_grad():
         logits = CNN_MODEL(x_cnn)
         prob_cnn = torch.softmax(logits, dim=1).cpu().numpy()[0]
+    
     # ---------------- Ensemble branch ----------------
     prob_ens = ENSEMBLE.predict(img_pil)  # soft-vote vector
+    
     # ---------------- SVM+PCA branches ----------------
     x_flat = _flatten_transform(img_pil)
     prob_svm = {}
     for k in [2, 5, 8]:
         x_pca = PCA_DICT[k].transform([x_flat])
         prob_svm[k] = SVM_DICT[k].predict_proba(x_pca)[0]
-    # ---------------- build return dict ----------------
-    probs = {
-        "SVM+PCA+KF (k=2)": float(prob_svm[2].max()),
-        "SVM+PCA+KF (k=5)": float(prob_svm[5].max()),
-        "SVM+PCA+KF (k=8)": float(prob_svm[8].max()),
-        "CNN": float(prob_cnn.max()),
-        "Ensemble": float(prob_ens.max())
-    }
-    # predicted label comes from ensemble (best single model)
-    pred_idx = int(prob_ens.argmax())
-    label = CLASS_NAMES[pred_idx]
-    return probs, label
+
+    # ----------------- Process results for each model -----------------
+    predictions = {}
+
+    # CNN
+    cnn_pred_idx = prob_cnn.argmax()
+    predictions["CNN"] = (CLASS_NAMES[cnn_pred_idx], float(prob_cnn.max()))
+
+    # Ensemble
+    ens_pred_idx = prob_ens.argmax()
+    predictions["Ensemble"] = (CLASS_NAMES[ens_pred_idx], float(prob_ens.max()))
+
+    # SVMs
+    for k in [2, 5, 8]:
+        prob_vector = prob_svm[k]
+        local_pred_idx = prob_vector.argmax()
+        global_pred_idx = SVM_DICT[k].classes_[local_pred_idx]
+        label = CLASS_NAMES[global_pred_idx]
+        confidence = float(prob_vector.max())
+        predictions[f"SVM+PCA+KF (k={k})"] = (label, confidence)
+
+    return predictions

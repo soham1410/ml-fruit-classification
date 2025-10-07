@@ -64,16 +64,25 @@ if uploaded_file is not None:
 
     # predict
     with st.spinner("Classifying …"):
-        probs, label = predict_all(img)
+        predictions = predict_all(img)
 
     # show results
     st.success("Done")
+    
+    # Re-order keys to be consistent
+    model_order = ['SVM+PCA+KF (k=2)', 'SVM+PCA+KF (k=5)', 'SVM+PCA+KF (k=8)', 'CNN', 'Ensemble']
+    
     cols = st.columns(3)
-    for idx, (model, confidence) in enumerate(probs.items()):
-        cols[idx % 3].metric(
-            label=model,
-            value=f"{confidence*100:.2f} %",
-            delta=f"predicts:  **{label}**"
-        )
+    # Ensure we have 6 slots for the 5 models + 1 empty if needed
+    for idx, model_name in enumerate(model_order):
+        if model_name in predictions:
+            label, confidence = predictions[model_name]
+            # Display only the first word of the label
+            prediction_word = label.split()[0]
+            cols[idx % 3].metric(
+                label=model_name,
+                value=prediction_word,
+                delta=f"{confidence*100:.2f}% confidence"
+            )
 else:
     st.info("👈 Upload an image to start classification.")
