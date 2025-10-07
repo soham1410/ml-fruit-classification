@@ -21,14 +21,14 @@ The project explores and compares three primary machine learning approaches for 
 **Components:**
 
 1.  **Data Layer:**
-    *   **Kaggle Dataset (Fruits-360):** The primary source of data. This component is responsible for providing the fruit images.
+    *   **Kaggle Dataset (Fruits-360):** The primary source of data.
 
 2.  **Data Preparation Layer:**
     *   **Data Downloader (`src/data.py`):** Downloads the dataset from Kaggle.
     *   **Image Transformation:** Applies transformations such as resizing and conversion to tensors.
-    *   **Data Splitting:** Splits the data into training and testing sets.
 
 3.  **Model Training Layer (`train.py`):**
+    *   **Configuration (`config.json`):** A JSON file that stores hyperparameters for the training process.
     *   **SVM+PCA Pipeline:**
         *   **PCA:** Reduces the dimensionality of the image data.
         *   **SVM:** A Support Vector Machine classifier trained on the PCA-transformed data.
@@ -50,18 +50,19 @@ The project explores and compares three primary machine learning approaches for 
 **Flows:**
 
 1.  The **Data Downloader** retrieves the **Kaggle Dataset**.
-2.  The **Image Transformation** and **Data Splitting** components process the data for training.
-3.  The **Model Training Layer** uses the prepared data to train the **SVM+PCA**, **CNN**, and **Ensemble** models.
-4.  The trained models are saved to the **Model Storage**.
-5.  The **Streamlit Web App** receives an image from the user.
-6.  The **Prediction Engine** in the **Inference Layer** loads the models from **Model Storage** and uses them to classify the image.
-7.  The **Streamlit Web App** displays the predictions to the user.
+2.  The **Image Transformation** component processes the data for training.
+3.  The **Model Training Layer** reads the **Configuration** from `config.json`.
+4.  The training layer then uses the prepared data and hyperparameters to train the **SVM+PCA**, **CNN**, and **Ensemble** models.
+5.  The trained models are saved to the **Model Storage**.
+6.  The **Streamlit Web App** receives an image from the user.
+7.  The **Prediction Engine** in the **Inference Layer** loads the models from **Model Storage** and uses them to classify the image.
+8.  The **Streamlit Web App** displays the predictions to the user.
 
 ## Data Sets
 
 -   **Description:** The project utilizes the Fruits-360 dataset, a large dataset of fruit images.
 -   **Source:** The dataset is automatically downloaded from Kaggle using the `moltean/fruits` dataset slug. The `src/data.py` script handles the download and extraction process.
--   **Exploration and Loading:** The `train.py` script is responsible for loading the data, splitting it into training and testing sets, and performing exploratory data analysis (EDA), such as plotting the distribution of fruit classes. The `visualize.py` script generates PCA plots for further data exploration.
+-   **Exploration and Loading:** The `train.py` script is responsible for loading the data. The implementation has been corrected to use the full training and testing sets to ensure model robustness and accuracy. The `visualize.py` script generates PCA plots for further data exploration.
 
 ## Algorithms
 
@@ -76,15 +77,22 @@ The following algorithms are implemented and evaluated in this project:
 
 The project follows these implementation steps:
 
-1.  **Data Preparation:** The `src/data.py` script downloads and prepares the Fruits-360 dataset for training.
-2.  **Model Training:** The `train.py` script trains the SVM+PCA, CNN, and ensemble models on the prepared data.
-3.  **Model Evaluation:** After training, the `train.py` script evaluates the performance of each model and saves the results.
-4.  **Visualization:** The `visualize.py` script generates various plots to visualize the model performance and data characteristics.
-5.  **Inference:** The `app.py` script provides a user-friendly interface to test the trained models with new fruit images.
+1.  **Configuration:** Before running the training, review and set the desired hyperparameters in `config.json`.
+2.  **Data Preparation:** The `src/data.py` script downloads and prepares the Fruits-360 dataset for training.
+3.  **Model Training:** The `train.py` script reads the configuration and trains the SVM+PCA, CNN, and ensemble models on the prepared data.
+4.  **Model Evaluation:** After training, the `train.py` script evaluates the performance of each model and saves the results.
+5.  **Visualization:** The `visualize.py` script generates various plots to visualize the model performance and data characteristics.
+6.  **Inference:** The `app.py` script provides a user-friendly interface to test the trained models with new fruit images.
 
 ## Experimental Setup
 
--   **Parameters:** The `train.py` script defines key parameters, including the number of PCA components, the number of folds for cross-validation, and the number of epochs for CNN training.
+-   **Configuration (`config.json`):** Key hyperparameters for the training process are defined in `config.json`. This includes:
+    -   `pca_components`: A list of component numbers for PCA.
+    -   `fold_values`: A list of fold numbers for cross-validation.
+    -   `random_state`: The seed for reproducible random operations.
+    -   `cnn_epochs`: The number of epochs for CNN training.
+    -   `batch_size`: The batch size for data loaders.
+    -   `learning_rate`: The learning rate for the Adam optimizer.
 -   **Tools:** The Kaggle API is used for downloading the dataset.
 -   **Libraries:**
     -   `streamlit`: For creating the web application.
