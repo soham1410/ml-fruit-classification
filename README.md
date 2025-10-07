@@ -18,10 +18,6 @@ The project explores and compares three primary machine learning approaches for 
 
 ## System Architecture
 
-A textual description of the system architecture that can be used to generate a diagram is as follows:
-
-**Title: System Architecture for Fruit Classification**
-
 **Components:**
 
 1.  **Data Layer:**
