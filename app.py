@@ -25,12 +25,12 @@ from PIL import Image
 from src.inference import predict_all
 # -------------------- page config --------------------
 st.set_page_config(
-    page_title="Fruit-360 ML Demo",
+    page_title="Fruit-360 ML",
     page_icon="🍒",
     layout="wide"
 )
 # -------------------- title --------------------
-st.title("🍒 Fruit Classification – Reproducing DAML 2023 Paper (+ Ensemble)")
+st.title("🍒 Fruit Classification")
 st.markdown(
     "Upload a fruit image and compare **six** pipelines:  \n"
     "SVM+PCA+K-Fold (k=2, 5, 8)  •  CNN  •  Ensemble"
