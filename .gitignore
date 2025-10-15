@@ -60,7 +60,7 @@ coverage.xml
 
 # Data, models, figures
 models/
-figures/
+
 *.pkl
 *.pth
 *.h5
